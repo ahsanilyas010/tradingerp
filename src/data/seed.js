@@ -73,7 +73,7 @@ export function buildSeed(profile) {
   // ── Invoices + items + receipts ──
   const invoices = [], invoice_items = [], payments = [];
   let invNo = 1000, payNo = 1, itemId = 1;
-  const invCount = profile.key === "retail" ? 90 : 170;
+  const invCount = profile.key === "retail" ? 130 : 170;
   for (let i = 0; i < invCount; i++) {
     const age = Math.floor(Math.pow(rnd(), 1.4) * 180); // skew towards recent
     const cust = pick(customers.slice(0, profile.custCount));
@@ -127,7 +127,7 @@ export function buildSeed(profile) {
   for (let i = 0; i < 72; i++) {
     const cat = pick(profile.expenseCats);
     const base = /Salar|Labour/.test(cat) ? int(60, 180) * 1000 : /Rent|Duty|Electric|Power/.test(cat) ? int(30, 120) * 1000 : int(2, 25) * 1000;
-    expenses.push({ id: `EXP-${pad(i + 1, 3)}`, date: ymd(daysAgo(int(0, 175))), category: cat, amount: base, notes: pick(["Monthly", "Paid via bank", "Petty cash", "Approved by admin", "Receipt attached"]), by: staffEmail() });
+    expenses.push({ id: `EXP-${pad(i + 1, 3)}`, date: ymd(daysAgo(int(0, 175))), category: cat, amount: Math.round(base * (profile.key === "retail" ? 0.3 : 1)), notes: pick(["Monthly", "Paid via bank", "Petty cash", "Approved by admin", "Receipt attached"]), by: staffEmail() });
   }
   expenses.sort((a, b) => b.date.localeCompare(a.date));
   db.expenses = expenses;

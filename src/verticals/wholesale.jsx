@@ -5,6 +5,7 @@ import { Card, Stat, Grid, Toolbar, Search, Pill, SPill, useTable } from "./shar
 import { sbPost } from "../data/mockApi.js";
 import { CONFIG, fmt } from "../lib/config.js";
 import { openPrintable } from "../lib/invoiceDoc.js";
+import { celebrate } from "../ui/motion.jsx";
 import { Quote, PackageCheck, ShieldAlert, Tags } from "lucide-react";
 
 const SO_FLOW = { Confirmed: "Picking", Picking: "Dispatched", Dispatched: "Delivered", Delivered: "Invoiced" };
@@ -51,7 +52,7 @@ const SalesOrdersPage = ({ ctx }) => {
     if (next === "Invoiced") {
       const id = `INV-${String(Math.max(1000, ...ctx.invoices.map(i => parseInt((i.id.match(/INV-(\d+)/) || [])[1] || 0))) + 1).padStart(4, "0")}`;
       await sbPost("upsert_invoice", { invoice: { id, date: todayStr(), cust_id: r.cust_id, cust_name: r.cust_name, total: r.total, status: "Unpaid", pay_terms: "NET 15", created_by: ctx.user.email, notes: `From ${r.id}`, items: r.items.map(i => ({ product_id: i.product_id, product_name: i.product_name, qty: i.qty, rate: i.rate, total: i.qty * i.rate, notes: "" })) } });
-      await sbPost("upsert", { table: "sales_orders", label: "Sales order", row: { ...r, status: "Invoiced", invoice_id: id } }); ctx.notify(`🧾 ${id} created from ${r.id}`); await ctx.loadData(true);
+      await sbPost("upsert", { table: "sales_orders", label: "Sales order", row: { ...r, status: "Invoiced", invoice_id: id } }); ctx.notify(`🧾 ${id} created from ${r.id}`); celebrate(); await ctx.loadData(true);
     } else { if (next === "Dispatched") for (const i of r.items) await sbPost("adjust_stock", { pid: i.product_id, delta: -i.qty }); await sbPost("upsert", { table: "sales_orders", label: "Sales order", row: { ...r, status: next } }); ctx.notify(`✅ ${r.id} → ${next}`); if (next === "Dispatched") ctx.loadData(true); }
     reload(); setView(null);
   };

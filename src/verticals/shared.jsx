@@ -5,18 +5,19 @@ import { G, Badge, Inp, Sel, Btn, Kpi, Modal, TblWrap, todayStr, ageDaysOf, vali
 import { sbPost } from "../data/mockApi.js";
 import { CONFIG, fmt, setCompany, setConfig } from "../lib/config.js";
 import { openPrintable } from "../lib/invoiceDoc.js";
+import { CountUp } from "../ui/motion.jsx";
 import { Landmark, AlertTriangle, Bell, Wallet } from "lucide-react";
 
 export const Card = ({ title, color = G.dark, right, children, style }) => (
-  <div style={{ background: G.card, borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,59,76,0.07)", ...style }}>
+  <div className="td-card" style={{ background: G.card, borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 12px rgba(15,23,42,0.07)", ...style }}>
     {title && <div style={{ background: color, padding: "11px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: G.white, fontWeight: 700, fontSize: 13 }}>{title}</span>{right}</div>}
     {children}
   </div>
 );
 export const Stat = ({ l, v, c = G.dark, sub }) => (
-  <div style={{ background: G.card, borderRadius: 9, padding: "11px 14px", boxShadow: "0 1px 8px rgba(15,59,76,0.07)", borderBottom: `3px solid ${c}` }}>
+  <div className="td-card" style={{ background: G.card, borderRadius: 9, padding: "11px 14px", boxShadow: "0 1px 8px rgba(15,23,42,0.07)", borderBottom: `3px solid ${c}` }}>
     <div style={{ fontSize: 9, color: G.muted, fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{l}</div>
-    <div style={{ fontSize: 16, fontWeight: 800, color: G.ink }}>{v}</div>
+    <div style={{ fontSize: 16, fontWeight: 800, color: G.ink }}><CountUp value={v} /></div>
     {sub && <div style={{ fontSize: 9, color: G.muted, marginTop: 2 }}>{sub}</div>}
   </div>
 );

@@ -15,6 +15,8 @@ import {
 import { sbPost, initDb } from "../data/mockApi.js";
 import { invoicePost } from "../lib/invoiceDoc.js";
 import { CONFIG, fmt } from "../lib/config.js";
+import { motion } from "motion/react";
+import { CountUp, PageTransition, NavGroup, CommandPalette, TopSearch, QuickNew, BellButton, QUICK_ICONS, WelcomeBanner, TrendChart, celebrate } from "../ui/motion.jsx";
 
 const KNOWN_DUPLICATE_GROUPS = [];
 
@@ -148,12 +150,12 @@ export const Btn = ({children,v="primary",onClick,sm,disabled,full}) => {
   return <button onClick={onClick} disabled={disabled} style={{background:s.bg,color:s.c,border:s.br,borderRadius:8,padding:sm?"5px 11px":"9px 18px",fontSize:sm?11:13,fontWeight:700,cursor:disabled?"not-allowed":"pointer",display:"inline-flex",alignItems:"center",gap:5,whiteSpace:"nowrap",opacity:disabled?0.6:1,width:full?"100%":"auto",justifyContent:full?"center":"flex-start"}}>{children}</button>;
 };
 export const Kpi = ({label,value,sub,color,trend,icon:Ico}) => (
-  <div style={{background:G.card,borderRadius:12,padding:"14px 16px",boxShadow:"0 2px 12px rgba(26,92,32,0.08)",borderLeft:`3px solid ${color||G.mid}`,display:"flex",flexDirection:"column",gap:5}}>
+  <div className="td-card" style={{background:G.card,borderRadius:12,padding:"14px 16px",boxShadow:"0 2px 12px rgba(15,23,42,0.07)",borderLeft:`3px solid ${color||G.mid}`,display:"flex",flexDirection:"column",gap:5}}>
     <span style={{display:"flex",alignItems:"center",gap:6,fontSize:9,fontWeight:700,color:G.muted,letterSpacing:"0.09em",textTransform:"uppercase"}}>
       {Ico&&<span style={{display:"inline-flex",width:22,height:22,borderRadius:6,background:`${color||G.mid}1A`,alignItems:"center",justifyContent:"center"}}><Ico size={13} color={color||G.mid}/></span>}
       {label}
     </span>
-    <div style={{fontSize:20,fontWeight:800,color:G.ink,letterSpacing:"-0.03em"}}>{value}</div>
+    <div style={{fontSize:20,fontWeight:800,color:G.ink,letterSpacing:"-0.03em"}}><CountUp value={value}/></div>
     {sub&&<div style={{fontSize:10,color:trend==="up"?G.mid:trend==="dn"?G.red:G.muted}}>{trend==="up"?"↑ ":trend==="dn"?"↓ ":""}{sub}</div>}
   </div>
 );
@@ -294,6 +296,9 @@ function CrmApp({ user, onLogout, vertical }) {
   const CWP = vertical.customerWordPlural || "Customers";
   const [tab, setTab]         = useState("dashboard");
   const [dataVersion, setDataVersion] = useState(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
+  useEffect(() => { const h = e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen(o => !o); } }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
   const isMobile              = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [data, setData]       = useState(null);
@@ -555,7 +560,7 @@ function CrmApp({ user, onLogout, vertical }) {
       pdfUrl = pdfRes?.pdfUrl || pdfRes?.url;
     } catch { /* non-fatal */ }
     if (pdfUrl) { cachePdf(invId, pdfUrl); triggerPdfDownload(pdfUrl); }
-    notify(`✅ ${invId} saved — ${fmt(invTotal)}`);
+    notify(`✅ ${invId} saved — ${fmt(invTotal)}`); celebrate();
     closeModal();
     await loadData(true);
   } catch(e) { notify("❌ "+e.message,"err"); throw e; }
@@ -725,6 +730,21 @@ function CrmApp({ user, onLogout, vertical }) {
       {id:"settings",  label:"Settings"},
     ]},
   ];
+  const QUICK_ACTIONS = [
+    { label: "New invoice", icon: QUICK_ICONS.invoice, color: G.dark, run: () => setModal({ t: "newInvoice" }) },
+    { label: "Collect payment", icon: QUICK_ICONS.payment, color: G.mid, run: () => setModal({ t: "recordPayment" }) },
+    { label: "Add expense", icon: QUICK_ICONS.expense, color: G.red, run: () => setModal({ t: "addExpense" }) },
+    { label: `Add ${CW.toLowerCase()}`, icon: QUICK_ICONS.customer, color: G.blue, run: () => setModal({ t: "addCustomer" }) },
+    { label: "New purchase", icon: QUICK_ICONS.purchase, color: G.purple, run: () => setModal({ t: "newPurchase" }) },
+  ];
+  const NAV_FLAT = NAV_GROUPS.flatMap(g => g.items.map(n => ({ ...n, group: g.group })));
+  const alertCount = lowStock.length + unpaidInv.filter(i => (ageDaysOf(i) || 0) > 30).length;
+  const trendMonths = (() => { const o = []; const d = new Date(); for (let i = 5; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); o.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`); } return o; })();
+  const trendSeries = [
+    { label: "Invoiced", color: G.dark, values: trendMonths.map(k => invoices.filter(i => i.status !== "VOIDED" && String(i.date).slice(0, 7) === k).reduce((s, i) => s + Number(i.total || 0), 0)) },
+    { label: "Collected", color: G.mid, values: trendMonths.map(k => payments.filter(p => p.type === "Received" && String(p.date).slice(0, 7) === k).reduce((s, p) => s + Number(p.amount || 0), 0)) },
+    { label: "Expenses", color: G.amber, values: trendMonths.map(k => expenses.filter(e => String(e.date).slice(0, 7) === k).reduce((s, e) => s + Number(e.amount || 0), 0)) },
+  ];
   // Shared context handed to TradeDesk extension pages
   const ctx = { vertical, user, customers, vendors, products, invoices, purchases, payments, expenses, inventory, sbData, ar, ap, custMap, vendMap, prodMap,
     totalRevenue, totalReceived, totalPurchases, totalExpenses, netProfit, totalAR, grossProfit, unpaidInv, lowStock,
@@ -743,6 +763,10 @@ function CrmApp({ user, onLogout, vertical }) {
           <Btn sm v="secondary" onClick={()=>loadData(true)}>{syncing?"⏳ Syncing…":"↻ Sync"}</Btn>
         </div>
       </div>
+      {showWelcome&&<WelcomeBanner G={G} vertical={vertical} onDismiss={()=>setShowWelcome(false)} onTry={()=>setModal({t:"newInvoice"})}/>}
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {QUICK_ACTIONS.map(a=><motion.button key={a.label} whileHover={{y:-2,scale:1.02}} whileTap={{scale:0.97}} onClick={a.run} style={{display:"inline-flex",alignItems:"center",gap:8,background:G.card,border:`1.5px solid ${G.border}`,borderRadius:12,padding:"9px 14px",fontSize:12,fontWeight:700,color:G.ink,cursor:"pointer",boxShadow:"0 2px 10px rgba(15,23,42,0.06)"}}><span style={{width:26,height:26,borderRadius:8,background:`${a.color}1A`,display:"inline-flex",alignItems:"center",justifyContent:"center"}}><a.icon size={14} color={a.color}/></span>{a.label}</motion.button>)}
+      </div>
       {vertical.DashboardExtra&&<vertical.DashboardExtra ctx={ctx}/>}
       {lowStock.length>0&&<div onClick={()=>setTab("inventory")} style={{background:"#FFF8E1",borderRadius:9,padding:"10px 14px",border:`1.5px solid ${G.amber}`,fontSize:12,fontWeight:700,color:G.amber,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <span>⚠️ {lowStock.length} product{lowStock.length>1?"s":""} at/below minimum stock — {lowStock.filter(p=>p.stock===0).length} out of stock</span>
@@ -756,8 +780,12 @@ function CrmApp({ user, onLogout, vertical }) {
         <Kpi label="Total Expenses"  value={fmt(totalExpenses)} sub="Operating costs"                  color={G.red}    icon={Receipt}/>
         <Kpi label="Net Profit"      value={fmt(netProfit)}     sub={`NP: ${npMargin}%`}               color={netProfit>0?G.mid:G.red} trend={netProfit>0?"up":"dn"} icon={TrendingUp}/>
       </div>
+      <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
+        <div style={{background:G.dark,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{color:G.white,fontWeight:700,fontSize:13}}>📈 Six-month trend — invoiced vs collected vs expenses</span><Btn sm v="secondary" onClick={()=>setTab("cashflow")}>Cash flow →</Btn></div>
+        <div style={{padding:"14px 16px"}}><TrendChart G={G} months={trendMonths} series={trendSeries} fmt={fmt}/></div>
+      </div>
       <div style={{display:"grid",gridTemplateColumns:"1.5fr 1fr",gap:16}}>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.dark,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{color:G.white,fontWeight:700,fontSize:13}}>Latest Invoices</span>
             <Btn sm v="secondary" onClick={()=>setTab("invoices")}>View All</Btn>
@@ -778,7 +806,7 @@ function CrmApp({ user, onLogout, vertical }) {
             </div>
           ))}
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.dark,padding:"11px 16px"}}><span style={{color:G.white,fontWeight:700,fontSize:13}}>P&L Snapshot</span></div>
           <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:9}}>
             {[{l:"Gross Revenue",v:totalRevenue,c:G.mid,bold:true},{l:"Cost of Goods",v:-totalPurchases,c:G.red},{l:"GROSS PROFIT",v:grossProfit,c:grossProfit>0?G.mid:G.red,bold:true,border:true},{l:"Operating Exp.",v:-totalExpenses,c:G.red},{l:"NET PROFIT",v:netProfit,c:netProfit>0?G.mid:G.red,bold:true,border:true,big:true}].map((r,i)=>(
@@ -791,7 +819,7 @@ function CrmApp({ user, onLogout, vertical }) {
         </div>
       </div>
       {unpaidInv.length>0&&(
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:"#B71C1C",padding:"11px 16px"}}><span style={{color:G.white,fontWeight:700,fontSize:13}}>⚠ Outstanding AR — {fmt(totalAR)}</span></div>
           <TblWrap compact heads={["Invoice","Customer","Total","Status","PDF","Action"]}
             rows={unpaidInv.slice(0,8).map(inv=>[
@@ -833,7 +861,7 @@ function CrmApp({ user, onLogout, vertical }) {
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:12}}>
           {[{l:"Total Invoiced",v:fmt(totalRevenue),c:G.mid},{l:"Collected",v:fmt(totalReceived),c:G.light},{l:"Outstanding",v:fmt(totalAR),c:G.amber},{l:"Invoices",v:invoices.length,c:G.dark}].map(s=>(
-            <div key={s.l} style={{background:G.card,borderRadius:9,padding:"11px 14px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)",borderBottom:`3px solid ${s.c}`}}>
+            <div key={s.l} style={{background:G.card,borderRadius:9,padding:"11px 14px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)",borderBottom:`3px solid ${s.c}`}}>
               <div style={{fontSize:9,color:G.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
               <div style={{fontSize:16,fontWeight:800,color:G.ink}}>{s.v}</div>
             </div>
@@ -849,7 +877,7 @@ function CrmApp({ user, onLogout, vertical }) {
               <div style={{fontSize:9,color:G.muted,fontWeight:800,textTransform:"uppercase",marginBottom:6,letterSpacing:0.5}}>Outstanding by Age</div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
                 {buckets.map(b=>(
-                  <div key={b.l} style={{background:G.card,borderRadius:9,padding:"10px 14px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)",borderLeft:`4px solid ${b.c}`}}>
+                  <div key={b.l} style={{background:G.card,borderRadius:9,padding:"10px 14px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)",borderLeft:`4px solid ${b.c}`}}>
                     <div style={{fontSize:9,color:G.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{b.l}</div>
                     <div style={{fontSize:15,fontWeight:800,color:b.c}}>{fmt(b.v)}</div>
                   </div>
@@ -858,7 +886,7 @@ function CrmApp({ user, onLogout, vertical }) {
             </div>
           );
         })()}
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["Invoice","Date","Customer","Total","Status","Terms","Age","PDF","Actions"]}
             rows={fil.map(inv=>[
               <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{inv.id}</span>,
@@ -1003,7 +1031,7 @@ function CrmApp({ user, onLogout, vertical }) {
             const cinv=invoices.filter(i=>i.custId===c.id);
             const out=cinv.reduce((s,i)=>i.status!=="Paid"?s+i.total:s,0);
             return (
-              <div key={c.id} onClick={()=>setModal({t:"viewCustomer",d:c})} style={{background:G.card,borderRadius:11,padding:16,boxShadow:"0 2px 10px rgba(26,92,32,0.07)",borderTop:`3px solid ${G.mid}`,cursor:"pointer"}}>
+              <div key={c.id} onClick={()=>setModal({t:"viewCustomer",d:c})} style={{background:G.card,borderRadius:11,padding:16,boxShadow:"0 2px 10px rgba(15,23,42,0.07)",borderTop:`3px solid ${G.mid}`,cursor:"pointer"}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
                   <div><div style={{fontWeight:800,fontSize:13,color:G.ink,marginBottom:2}}>{c.name}{dupInfo.groupSize[c.id]>1&&<span title="duplicate customer rows merged into this one" style={{marginLeft:6,fontSize:9,color:G.amber,fontWeight:800}}>×{dupInfo.groupSize[c.id]}</span>}</div><div style={{fontSize:10,color:G.muted}}>{c.area} · {c.city}</div></div>
                   <span style={{fontSize:10,fontWeight:700,color:G.muted,background:G.pale,padding:"2px 6px",borderRadius:6,alignSelf:"flex-start"}}>{c.id}</span>
@@ -1056,13 +1084,13 @@ function CrmApp({ user, onLogout, vertical }) {
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:12}}>
         {[{l:"Total Purchases",v:fmt(totalPurchases),c:G.dark},{l:"AP Outstanding",v:fmt(ap.reduce((s,r)=>s+r.balance,0)),c:G.red},{l:"POs Raised",v:purchases.length,c:G.mid}].map(s=>(
-          <div key={s.l} style={{background:G.card,borderRadius:9,padding:"11px 14px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)",borderBottom:`3px solid ${s.c}`}}>
+          <div key={s.l} style={{background:G.card,borderRadius:9,padding:"11px 14px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)",borderBottom:`3px solid ${s.c}`}}>
             <div style={{fontSize:9,color:G.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
             <div style={{fontSize:16,fontWeight:800,color:G.ink}}>{s.v}</div>
           </div>
         ))}
       </div>
-      <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+      <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
         <TblWrap compact heads={["PO ID","Date","Vendor","Total","Paid","Balance","Notes"]}
           rows={purchases.map(p=>[
             <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{p.id}</span>,
@@ -1089,14 +1117,14 @@ function CrmApp({ user, onLogout, vertical }) {
         </div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:9,marginBottom:12}}>
           {cats.map(c=>{const ct=expenses.filter(e=>e.category===c).reduce((s,e)=>s+e.amount,0);return(
-            <div key={c} style={{background:G.card,borderRadius:9,padding:"11px 13px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)"}}>
+            <div key={c} style={{background:G.card,borderRadius:9,padding:"11px 13px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)"}}>
               <div style={{fontSize:10,fontWeight:700,color:G.dark,marginBottom:2}}>{c}</div>
               <div style={{fontSize:14,fontWeight:800,color:G.ink,marginBottom:5}}>{fmt(ct)}</div>
               <div style={{height:3,background:G.pale,borderRadius:2}}><div style={{height:"100%",width:pct(ct,total),background:G.mid,borderRadius:2}}/></div>
             </div>
           );})}
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["Exp ID","Date","Category","Amount","Notes","By"]}
             rows={expenses.map(e=>[
               <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{e.id}</span>,
@@ -1116,14 +1144,14 @@ function CrmApp({ user, onLogout, vertical }) {
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
         {[{l:"Revenue",v:fmt(totalRevenue),c:G.mid},{l:"COGS",v:fmt(totalPurchases),c:G.purple},{l:"Gross Profit",v:fmt(grossProfit),c:G.light},{l:"Net Profit",v:fmt(netProfit),c:netProfit>=0?G.mid:G.red}].map(s=>(
-          <div key={s.l} style={{background:G.card,borderRadius:10,padding:"12px 15px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)",borderBottom:`3px solid ${s.c}`}}>
+          <div key={s.l} style={{background:G.card,borderRadius:10,padding:"12px 15px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)",borderBottom:`3px solid ${s.c}`}}>
             <div style={{fontSize:9,color:G.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
             <div style={{fontSize:18,fontWeight:800,color:G.ink}}>{s.v}</div>
           </div>
         ))}
       </div>
       <div style={{display:"grid",gridTemplateColumns:"1.3fr 1fr",gap:14}}>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.dark,padding:"12px 20px"}}><span style={{color:G.white,fontWeight:800,fontSize:14}}>{CONFIG.company.name} — Profit & Loss Statement</span></div>
           <div style={{padding:"12px 20px 20px"}}>
             {[{h:"REVENUE"},{l:"Gross Sales",v:totalRevenue,indent:true},{l:"Total Revenue",v:totalRevenue,bold:true,border:true},{h:"COST OF GOODS"},{l:"Total Purchases",v:-totalPurchases,indent:true,neg:true},{l:"GROSS PROFIT",v:grossProfit,bold:true,border:true,bg:grossProfit>0?G.pale:G.pink},{note:`GP Margin: ${gpMargin}%`},{h:"EXPENSES"},{l:"Total Expenses",v:-totalExpenses,indent:true,neg:true},{l:"NET PROFIT / (LOSS)",v:netProfit,bold:true,border:true,big:true,bg:netProfit>0?G.pale:G.pink},{note:`NP Margin: ${npMargin}%`}
@@ -1137,7 +1165,7 @@ function CrmApp({ user, onLogout, vertical }) {
             })}
           </div>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.mid,padding:"10px 16px"}}><span style={{color:G.white,fontWeight:700,fontSize:12}}>Revenue vs Cost</span></div>
           <div style={{padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
             {[{l:"Revenue",v:totalRevenue,max:totalRevenue,c:G.mid},{l:"COGS",v:totalPurchases,max:totalRevenue,c:G.purple},{l:"Gross Profit",v:grossProfit,max:totalRevenue,c:G.light},{l:"Expenses",v:totalExpenses,max:totalRevenue,c:G.amber},{l:"Net Profit",v:Math.abs(netProfit),max:totalRevenue,c:netProfit>=0?G.mid:G.red}].map(row=>(
@@ -1156,7 +1184,7 @@ function CrmApp({ user, onLogout, vertical }) {
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
         {[{l:"AR Billed",v:fmt(totalRevenue),c:G.mid},{l:"AR Outstanding",v:fmt(totalAR),c:G.amber},{l:"AP Ordered",v:fmt(totalPurchases),c:G.purple},{l:"AP Outstanding",v:fmt(ap.reduce((s,r)=>s+r.balance,0)),c:G.red}].map(s=>(
-          <div key={s.l} style={{background:G.card,borderRadius:9,padding:"11px 14px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)",borderBottom:`3px solid ${s.c}`}}>
+          <div key={s.l} style={{background:G.card,borderRadius:9,padding:"11px 14px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)",borderBottom:`3px solid ${s.c}`}}>
             <div style={{fontSize:9,color:G.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{s.l}</div>
             <div style={{fontSize:16,fontWeight:800,color:G.ink}}>{s.v}</div>
           </div>
@@ -1165,7 +1193,7 @@ function CrmApp({ user, onLogout, vertical }) {
 
       {/* Outstanding invoices — the primary thing the user needs to see in AR */}
       {unpaidInv.length>0&&(
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.amber,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{color:G.white,fontWeight:700,fontSize:12}}>📋 Outstanding Invoices ({unpaidInv.length})</span>
             <Btn sm onClick={()=>setModal({t:"recordPayment"})} style={{background:"rgba(255,255,255,0.2)",color:G.white,border:"none"}}>💳 Collect Payment</Btn>
@@ -1185,7 +1213,7 @@ function CrmApp({ user, onLogout, vertical }) {
       {unpaidInv.length===0&&totalAR===0&&<div style={{background:G.pale,borderRadius:9,padding:"12px 16px",fontSize:12,color:G.mid,fontWeight:600}}>✅ All invoices collected — AR is clear</div>}
 
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.mid,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{color:G.white,fontWeight:700,fontSize:12}}>AR Ledger (by Customer)</span>
             <Btn sm onClick={()=>setModal({t:"recordPayment"})} style={{background:"rgba(255,255,255,0.15)",color:G.white,border:"none",fontSize:10}}>💳 Collect</Btn>
@@ -1202,7 +1230,7 @@ function CrmApp({ user, onLogout, vertical }) {
             ])}
           />
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.purple,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{color:G.white,fontWeight:700,fontSize:12}}>AP Ledger (by Vendor)</span>
             <Btn sm onClick={()=>setModal({t:"vendorPayment"})} style={{background:"rgba(255,255,255,0.15)",color:G.white,border:"none",fontSize:10}}>💳 Pay</Btn>
@@ -1231,7 +1259,7 @@ function CrmApp({ user, onLogout, vertical }) {
         <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
           <Btn sm v="secondary" onClick={()=>exportCsv("inventory.csv",inventory,[["pid","PID"],["pname","Product"],["category","Category"],["cost","Cost"],["purchased","In"],["sold","Sold"],["stock","Stock"],["minStock","Min"]])}>⬇ Export</Btn>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["PID","Product","Cat","Cost","In","Sold","Stock","Min","Status","Adjust"]}
             rows={inventory.map(p=>{const s=p.stock===0?"Out of Stock":p.stock<=p.minStock?"Low Stock":"Active";return[<span style={{fontWeight:700,fontSize:10,color:G.dark}}>{p.pid}</span>,<span style={{fontWeight:600,fontSize:11}}>{p.pname}</span>,<Badge text={p.category}/>,<span style={{fontSize:10,color:G.muted}}>{fmt(p.cost)}</span>,<span style={{fontWeight:600}}>{p.purchased}</span>,<span style={{fontWeight:600,color:G.mid}}>{p.sold}</span>,<span style={{fontWeight:800,color:p.stock===0?G.red:p.stock<=p.minStock?G.amber:G.ink}}>{p.stock}</span>,<span style={{fontSize:10,color:G.muted}}>{p.minStock}</span>,<Badge text={s}/>,<Btn sm v="ghost" onClick={()=>setModal({t:"adjustStock",d:p})}>± Adjust</Btn>];})}
           />
@@ -1244,7 +1272,7 @@ function CrmApp({ user, onLogout, vertical }) {
     const topCust=[...customers].map(c=>({...c,rev:invoices.filter(i=>i.custId===c.id).reduce((s,i)=>s+i.total,0)})).sort((a,b)=>b.rev-a.rev).slice(0,8);
     return(
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.mid,padding:"11px 16px"}}><span style={{color:G.white,fontWeight:700,fontSize:12}}>🏆 Top Customers by Revenue</span></div>
           <div style={{padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
             {topCust.map((c,i)=>(
@@ -1258,7 +1286,7 @@ function CrmApp({ user, onLogout, vertical }) {
             ))}
           </div>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.red,padding:"11px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{color:G.white,fontWeight:700,fontSize:12}}>⚠ AR Aging</span>
             <Btn sm v="secondary" onClick={()=>exportCsv("ar_aging.csv",ar.filter(r=>r.balance>0),[["custName","Customer"],["city","City"],["billed","Billed"],["paid","Paid"],["balance","Balance"]])}>⬇ Export</Btn>
@@ -1284,7 +1312,7 @@ function CrmApp({ user, onLogout, vertical }) {
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))",gap:12}}>
         {vendors.map(v=>{const apRow=ap.find(a=>a.vendorId===v.id)||{};return(
-          <div key={v.id} style={{background:G.card,borderRadius:11,padding:16,boxShadow:"0 2px 10px rgba(26,92,32,0.07)",borderLeft:`4px solid ${G.mid}`}}>
+          <div key={v.id} style={{background:G.card,borderRadius:11,padding:16,boxShadow:"0 2px 10px rgba(15,23,42,0.07)",borderLeft:`4px solid ${G.mid}`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
               <div style={{fontWeight:800,fontSize:14,color:G.ink,marginBottom:2}}>{v.name}</div>
               <Btn sm v="ghost" onClick={()=>setModal({t:"editVendor",d:v})}>✏️</Btn>
@@ -1467,7 +1495,7 @@ function CrmApp({ user, onLogout, vertical }) {
           <div style={{marginBottom:14}}>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:14}}>
               {ageBuckets.map(b=>(
-                <div key={b.label} style={{background:G.card,borderRadius:9,padding:"10px 14px",boxShadow:"0 1px 8px rgba(26,92,32,0.07)",borderLeft:`4px solid ${b.c}`}}>
+                <div key={b.label} style={{background:G.card,borderRadius:9,padding:"10px 14px",boxShadow:"0 1px 8px rgba(15,23,42,0.07)",borderLeft:`4px solid ${b.c}`}}>
                   <div style={{fontSize:9,color:G.muted,fontWeight:700,textTransform:"uppercase",marginBottom:4}}>{b.label}</div>
                   <div style={{fontSize:15,fontWeight:800,color:b.c}}>{fmt(b.items.reduce((s,i)=>s+i.total,0))}</div>
                   <div style={{fontSize:9,color:G.muted,marginTop:2}}>{b.items.length} invoice{b.items.length!==1?"s":""}</div>
@@ -1940,7 +1968,7 @@ function CrmApp({ user, onLogout, vertical }) {
         {isMobile ? (
           <div style={{display:"flex",flexDirection:"column",gap:8}}>
             {filtered.map(o=>(
-              <div key={o.id} style={{background:G.card,borderRadius:12,padding:14,boxShadow:"0 2px 8px rgba(26,92,32,0.07)"}}>
+              <div key={o.id} style={{background:G.card,borderRadius:12,padding:14,boxShadow:"0 2px 8px rgba(15,23,42,0.07)"}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8,gap:8}}>
                   <div style={{minWidth:0}}>
                     <div style={{fontWeight:700,fontSize:14,color:G.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{o.stores?.name||"—"}</div>
@@ -1965,7 +1993,7 @@ function CrmApp({ user, onLogout, vertical }) {
             {filtered.length===0&&<div style={{padding:32,textAlign:"center",color:G.muted,fontSize:12}}>No orders match filter</div>}
           </div>
         ) : (
-          <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+          <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
             <TblWrap compact heads={["Order","Date","Store","Rider","Total","Status","Payment","Invoice","Actions"]}
               rows={filtered.map(o=>[
                 <span style={{fontWeight:700,color:G.dark,fontSize:10,fontFamily:"monospace"}}>{(o.id||"").slice(0,8)}</span>,
@@ -2112,7 +2140,7 @@ function CrmApp({ user, onLogout, vertical }) {
           <Btn sm v="secondary" disabled={syncing} onClick={syncToCustomers}>{syncing?"⏳ Syncing…":"⬆ Sync to Customers"}</Btn>
           <Btn sm v="secondary" onClick={()=>loadSupabase()}>↻ Refresh</Btn>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["Name","Owner","Mobile","Area","Category","Customer ID","Actions"]}
             rows={filtered.map(s=>[
               <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{s.name}{dupInfo.groupSize[s.id]>1&&<span title="duplicate stores merged into this one" style={{marginLeft:6,fontSize:9,color:G.amber,fontWeight:800}}>×{dupInfo.groupSize[s.id]}</span>}{dupInfo.dupIds.has(s.id)&&<span style={{marginLeft:6,fontSize:9,color:G.red,fontWeight:800}}>dup</span>}</span>,
@@ -2183,7 +2211,7 @@ function CrmApp({ user, onLogout, vertical }) {
           <Btn sm v="secondary" onClick={()=>exportCsv("riders.csv",sbData.riders,[["full_name","Name"],["mobile","Mobile"],["cnic","CNIC"],["city","City"],["area","Area"],["bike_available","Bike Available"]])}>⬇ Export</Btn>
           <Btn sm v="secondary" onClick={()=>loadSupabase()}>↻ Refresh</Btn>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["Name","Mobile","CNIC","City","Area","Bike","Pay Perm","Actions"]}
             rows={sbData.riders.map(r=>{
               const perm = permMap[r.id];
@@ -2267,7 +2295,7 @@ function CrmApp({ user, onLogout, vertical }) {
           <span style={{fontSize:11,color:G.muted,fontWeight:600}}>Auto-refreshes every 30 seconds</span>
           <Btn sm v="secondary" onClick={()=>loadSupabase()}>↻ Refresh Now</Btn>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["Rider","Last Seen","Accuracy","Location"]}
             rows={sbData.locations.map(loc=>{
               const r=riderMap[loc.rider_id];
@@ -2314,7 +2342,7 @@ function CrmApp({ user, onLogout, vertical }) {
           <Btn sm v="secondary" onClick={()=>exportCsv("products.csv",filtered,[["name","Name"],["category","Category"],["trade_price","Trade Price"],["current_stock","Stock"],["min_stock","Min"],["active","Active"]])}>⬇ Export</Btn>
           <Btn sm v="secondary" onClick={()=>loadSupabase()}>↻ Refresh</Btn>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <TblWrap compact heads={["Name","Category","Trade","Stock","Min","Active","Action"]}
             rows={filtered.map(p=>[
               <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{p.name}</span>,
@@ -2372,7 +2400,7 @@ function CrmApp({ user, onLogout, vertical }) {
           <Btn sm v="secondary" onClick={()=>loadSupabase()}>↻ Refresh</Btn>
         </div>
         {selRider?(
-          <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+          <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
             <TblWrap compact heads={["Store","Area","Assigned"]}
               rows={sbData.stores.map(s=>[
                 <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{s.name}</span>,
@@ -2406,7 +2434,7 @@ function CrmApp({ user, onLogout, vertical }) {
     if(sbLoading)return <div style={{padding:40,textAlign:"center",color:G.muted}}>⏳ Loading areas…</div>;
     return (
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <div style={{background:G.card,borderRadius:12,padding:16,boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div style={{background:G.card,borderRadius:12,padding:16,boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{fontWeight:700,fontSize:12,color:G.dark,marginBottom:10}}>Add Area</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:8,alignItems:"end"}}>
             <Inp label="City *" value={addForm.city} onChange={e=>setAddForm(f=>({...f,city:e.target.value}))}/>
@@ -2414,7 +2442,7 @@ function CrmApp({ user, onLogout, vertical }) {
             <Btn disabled={busy||!addForm.city||!addForm.name} onClick={addArea}>{busy?"Adding…":"+ Add"}</Btn>
           </div>
         </div>
-        <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{background:G.dark,padding:"9px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{color:G.white,fontWeight:700,fontSize:12}}>Areas ({sbData.areas.length})</span>
             <Btn sm v="secondary" onClick={()=>loadSupabase()}>↻ Refresh</Btn>
@@ -2428,7 +2456,7 @@ function CrmApp({ user, onLogout, vertical }) {
           />
           {sbData.areas.length===0&&<div style={{padding:24,textAlign:"center",color:G.muted,fontSize:12}}>No areas yet</div>}
         </div>
-        <div style={{background:G.card,borderRadius:12,padding:16,boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div style={{background:G.card,borderRadius:12,padding:16,boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{fontWeight:700,fontSize:12,color:G.dark,marginBottom:10}}>Rider Area Assignments</div>
           <select value={selRider} onChange={e=>setSelRider(e.target.value)} style={{maxWidth:280,border:`1.5px solid ${G.border}`,borderRadius:8,padding:"7px 11px",fontSize:12,color:G.ink,background:G.bg,outline:"none",marginBottom:12,display:"block"}}>
             <option value="">— Select a Rider —</option>
@@ -2498,7 +2526,7 @@ function CrmApp({ user, onLogout, vertical }) {
           </div>
         )}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+          <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
             <div style={{background:G.dark,padding:"9px 14px"}}><span style={{color:G.white,fontWeight:700,fontSize:12}}>By Rider</span></div>
             <TblWrap compact heads={["Rider","Orders","Revenue","Incentive"]}
               rows={riderStats.map(r=>[
@@ -2510,7 +2538,7 @@ function CrmApp({ user, onLogout, vertical }) {
             />
             {riderStats.length===0&&<div style={{padding:24,textAlign:"center",color:G.muted,fontSize:12}}>No data</div>}
           </div>
-          <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+          <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
             <div style={{background:G.dark,padding:"9px 14px"}}><span style={{color:G.white,fontWeight:700,fontSize:12}}>Top Products</span></div>
             <TblWrap compact heads={["Product","Qty","Revenue"]}
               rows={productStats.map(p=>[
@@ -2572,7 +2600,7 @@ function CrmApp({ user, onLogout, vertical }) {
       };
       const remove = (e) => saveEmails(emails.filter(x=>x!==e));
       return (
-        <div style={{background:G.card,borderRadius:12,padding:18,boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div style={{background:G.card,borderRadius:12,padding:18,boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{fontWeight:700,fontSize:13,color:G.dark,marginBottom:14}}>Order Email Notifications</div>
           <div style={{marginBottom:12,display:"flex",flexDirection:"column",gap:6}}>
             {emails.length===0&&<div style={{fontSize:12,color:G.muted,fontStyle:"italic"}}>No recipients — using system defaults</div>}
@@ -2593,14 +2621,14 @@ function CrmApp({ user, onLogout, vertical }) {
     };
     return (
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <div style={{background:G.card,borderRadius:12,padding:18,boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div style={{background:G.card,borderRadius:12,padding:18,boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{fontWeight:700,fontSize:13,color:G.dark,marginBottom:14}}>Incentive Settings</div>
           <SettingRow k="incentive_per_order" label={`Incentive per Order (${CONFIG.currency})`} type="number"/>
           <SettingRow k="monthly_target_orders" label="Monthly Target (Orders)" type="number"/>
           <SettingRow k="bonus_amount" label={`Bonus Amount (${CONFIG.currency})`} type="number"/>
           <SettingRow k="bonus_threshold_orders" label="Bonus Threshold (Orders)" type="number"/>
         </div>
-        <div style={{background:G.card,borderRadius:12,padding:18,boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+        <div style={{background:G.card,borderRadius:12,padding:18,boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
             <div style={{fontWeight:700,fontSize:13,color:G.dark}}>Push Notifications</div>
             {pushCount!==null&&<span style={{fontSize:11,color:G.muted,fontWeight:600}}>{pushCount} subscribers</span>}
@@ -2717,7 +2745,7 @@ function CrmApp({ user, onLogout, vertical }) {
         {loading&&!returns&&<div style={{textAlign:"center",padding:32,color:G.muted,fontSize:13}}>⏳ Loading returns…</div>}
         {returns&&filtered.length===0&&<div style={{textAlign:"center",padding:32,color:G.muted,fontSize:13}}>No returns found.</div>}
         {filtered.map(r => (
-          <div key={r.id} style={{background:G.card,borderRadius:12,boxShadow:"0 2px 12px rgba(26,92,32,0.07)",overflow:"hidden"}}>
+          <div key={r.id} style={{background:G.card,borderRadius:12,boxShadow:"0 2px 12px rgba(15,23,42,0.07)",overflow:"hidden"}}>
             {/* Row */}
             <div onClick={()=>toggleExpand(r.id)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer",background:expanded===r.id?G.pale:"transparent"}}>
               <div style={{width:36,height:36,borderRadius:9,background:G.pink,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -2895,7 +2923,7 @@ function CrmApp({ user, onLogout, vertical }) {
         </div>
 
         {/* Filters */}
-        <div style={{background:G.card,borderRadius:12,padding:16,boxShadow:"0 2px 12px rgba(26,92,32,0.07)",display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-end"}}>
+        <div style={{background:G.card,borderRadius:12,padding:16,boxShadow:"0 2px 12px rgba(15,23,42,0.07)",display:"flex",flexWrap:"wrap",gap:12,alignItems:"flex-end"}}>
           <Inp label="From" type="date" value={from} onChange={e=>setFrom(e.target.value)} style={{flex:"1 1 130px"}}/>
           <Inp label="To" type="date" value={to} onChange={e=>setTo(e.target.value)} style={{flex:"1 1 130px"}}/>
           <Sel label="Status" value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{flex:"1 1 140px"}}>
@@ -2921,7 +2949,7 @@ function CrmApp({ user, onLogout, vertical }) {
         ) : (
           <div style={{display:"flex",flexDirection:"column",gap:10}}>
             {byRider.map(r => (
-              <div key={r.name} style={{background:G.card,borderRadius:12,boxShadow:"0 2px 12px rgba(26,92,32,0.07)",overflow:"hidden"}}>
+              <div key={r.name} style={{background:G.card,borderRadius:12,boxShadow:"0 2px 12px rgba(15,23,42,0.07)",overflow:"hidden"}}>
                 {/* Rider header row */}
                 <div
                   onClick={()=>setExpandedRider(expandedRider===r.name?null:r.name)}
@@ -2984,7 +3012,7 @@ function CrmApp({ user, onLogout, vertical }) {
             <Btn sm onClick={()=>setModal({t:"recordPayment"})}>+ Record Payment</Btn>
             <Btn sm v="secondary" onClick={()=>exportCsv("payments.csv",allPays,[["id","Pay ID"],["date","Date"],["type","Type"],["partyName","Party"],["refId","Invoice"],["amount","Amount"],["notes","Notes"]])}>⬇ Export</Btn>
           </div>
-          <div style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(26,92,32,0.07)"}}>
+          <div className="td-card" style={{background:G.card,borderRadius:12,overflow:"hidden",boxShadow:"0 2px 12px rgba(15,23,42,0.07)"}}>
             <TblWrap compact heads={["Pay ID","Date","Type","Party","Invoice","Amount","Notes"]}
               rows={allPays.map(p=>[
                 <span style={{fontWeight:700,color:G.dark,fontSize:11}}>{p.id}</span>,
@@ -3016,39 +3044,22 @@ function CrmApp({ user, onLogout, vertical }) {
       {isMobile&&sidebarOpen&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:1090}}/>}
       {/* SIDEBAR */}
       <div style={isMobile
-        ? {width:240,background:G.sidebar,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:1100,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease",boxShadow:sidebarOpen?"0 0 40px rgba(0,0,0,0.5)":"none"}
-        : {width:200,background:G.sidebar,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
+        ? {width:240,background:`linear-gradient(180deg,${G.sidebar} 0%,${G.sidebar2||G.sidebar} 100%)`,display:"flex",flexDirection:"column",position:"fixed",top:0,left:0,height:"100vh",zIndex:1100,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease",boxShadow:sidebarOpen?"0 0 40px rgba(0,0,0,0.5)":"none"}
+        : {width:210,background:`linear-gradient(180deg,${G.sidebar} 0%,${G.sidebar2||G.sidebar} 100%)`,display:"flex",flexDirection:"column",flexShrink:0,overflow:"hidden"}}>
         <div style={{padding:"16px 14px 12px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
           <div style={{display:"flex",alignItems:"center",gap:9}}>
             <div style={{width:32,height:32,background:`linear-gradient(135deg,${vertical.accent||G.mid},${G.accent})`,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{vertical.LogoIcon?<vertical.LogoIcon size={17} color={G.white}/>:<Boxes size={17} color={G.white}/>}</div>
             <div style={{minWidth:0}}>
               <div style={{color:G.white,fontWeight:800,fontSize:12}}>TradeDesk ERP</div>
               <div style={{display:"flex",alignItems:"center",gap:4,marginTop:1}}>
-                <div style={{width:5,height:5,borderRadius:"50%",background:G.light,boxShadow:`0 0 4px ${G.light}`}}/>
+                <div className="td-live" style={{width:6,height:6,borderRadius:"50%",background:G.light}}/>
                 <span style={{color:"rgba(255,255,255,0.45)",fontSize:8,letterSpacing:"0.08em",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(vertical.label||"").toUpperCase()} EDITION</span>
               </div>
             </div>
           </div>
         </div>
         <nav style={{flex:1,padding:"8px 6px",overflowY:"auto",display:"flex",flexDirection:"column",gap:0}}>
-          {NAV_GROUPS.map(section=>(
-            <div key={section.group}>
-              <div style={{fontSize:8,fontWeight:800,color:"rgba(255,255,255,0.22)",textTransform:"uppercase",letterSpacing:"0.12em",padding:"8px 8px 3px"}}>{section.group}</div>
-              {section.items.map(n=>{
-                const active=tab===n.id;
-                const ic=NAV_ICONS[n.id];
-                return(
-                  <button key={n.id} onClick={()=>{setTab(n.id);setSearch("");if(isMobile)setSidebarOpen(false);}} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 9px",borderRadius:7,border:"none",cursor:"pointer",background:active?"rgba(76,175,80,0.18)":"transparent",color:active?"#8BC34A":"rgba(255,255,255,0.52)",fontWeight:active?700:500,fontSize:12,width:"100%",textAlign:"left"}}>
-                    <span style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
-                      {ic&&<ic.Icon size={15} color={ic.color} style={{flexShrink:0}}/>}
-                      <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{n.label}</span>
-                    </span>
-                    {n.badge&&<span style={{background:typeof n.badge==="number"&&n.badge>10?G.blue:G.red,color:G.white,borderRadius:9,padding:"1px 6px",fontSize:8,fontWeight:800,flexShrink:0}}>{n.badge}</span>}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+          {NAV_GROUPS.map(section=><NavGroup key={section.group} section={section} tab={tab} G={G} NAV_ICONS={NAV_ICONS} onPick={id=>{setTab(id);setSearch("");if(isMobile)setSidebarOpen(false);}}/>)}
         </nav>
         <div style={{padding:"10px 12px",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
           <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:7}}>
@@ -3065,12 +3076,15 @@ function CrmApp({ user, onLogout, vertical }) {
 
       {/* MAIN */}
       <div style={{flex:1,display:"flex",flexDirection:"column",overflow:"hidden"}}>
-        <div style={{background:G.white,borderBottom:`1px solid ${G.border}`,padding:isMobile?"0 14px":"0 22px",height:52,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:"0 1px 4px rgba(26,92,32,0.06)"}}>
+        <div style={{background:G.white,borderBottom:`1px solid ${G.border}`,borderTop:`3px solid ${G.dark}`,padding:isMobile?"0 14px":"0 22px",height:56,display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,boxShadow:"0 1px 4px rgba(15,23,42,0.06)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,minWidth:0}}>
             {isMobile&&<button onClick={()=>setSidebarOpen(true)} aria-label="Open menu" style={{display:"flex",alignItems:"center",justifyContent:"center",background:G.pale,border:`1px solid ${G.border}`,borderRadius:8,width:34,height:34,cursor:"pointer",color:G.dark,flexShrink:0}}><Menu size={18}/></button>}
             <h1 style={{margin:0,fontSize:isMobile?15:17,fontWeight:800,color:G.ink,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{NAV_GROUPS.flatMap(g=>g.items).find(n=>n.id===tab)?.label}</h1>
           </div>
           <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+            <TopSearch G={G} isMobile={isMobile} onOpen={()=>setPaletteOpen(true)}/>
+            <QuickNew G={G} isMobile={isMobile} actions={QUICK_ACTIONS}/>
+            <BellButton G={G} isMobile={isMobile} count={alertCount} onClick={()=>setTab("alerts")}/>
             {(syncing||sbSyncing)&&<span style={{fontSize:10,color:G.muted,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><RefreshCw size={11} style={{animation:"spin 1s linear infinite"}}/>{!isMobile&&"Syncing…"}</span>}
             {RIDER_HUB_TABS.has(tab)
               ?<button onClick={()=>loadSupabase()} style={{background:"#E3F2FD",border:`1px solid ${G.blue}`,borderRadius:7,padding:"5px 11px",fontSize:10,fontWeight:700,color:G.blue,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:5}}><RefreshCw size={12}/>{!isMobile&&"Rider Sync"}</button>
@@ -3082,7 +3096,8 @@ function CrmApp({ user, onLogout, vertical }) {
         <UndoHost ref={undoRef} notify={notify}/>
 
 
-        <div style={{flex:1,overflow:"auto",padding:isMobile?12:18}}>{PAGES[tab]}</div>
+        <div style={{flex:1,overflow:"auto",padding:isMobile?12:18}}><PageTransition id={tab}>{PAGES[tab]}</PageTransition></div>
+        <CommandPalette open={paletteOpen} onClose={()=>setPaletteOpen(false)} G={G} navItems={NAV_FLAT} customers={customers} invoices={invoices} products={products} actions={QUICK_ACTIONS} onNav={id=>{setTab(id);setSearch("");}} onCustomer={c=>setModal({t:"viewCustomer",d:c})} onInvoice={i=>setModal({t:"viewInvoice",d:i})}/>
       </div>
 
       {renderModal()}

@@ -5,6 +5,7 @@ import { Card, Stat, Grid, Toolbar, Search, Pill, SPill, useTable, Bars, lastMon
 import { sbPost } from "../data/mockApi.js";
 import { CONFIG, fmt } from "../lib/config.js";
 import { openPrintable } from "../lib/invoiceDoc.js";
+import { celebrate } from "../ui/motion.jsx";
 import { Monitor, ShoppingBag, Clock, Building2 } from "lucide-react";
 
 const receiptHtml = (sale, items, branch) => `<div style="max-width:320px;margin:0 auto;font-family:monospace;font-size:12px"><div style="text-align:center"><b>${CONFIG.company.name}</b><br/>${branch?.name || ""}<br/>${CONFIG.company.phone}<br/>STRN ${CONFIG.company.strn}</div><hr/>Receipt: ${sale.id}<br/>Date: ${new Date(sale.date).toLocaleString()}<br/>Cashier: ${sale.cashier}<hr/>${items.map(i => `<div style="display:flex;justify-content:space-between"><span>${i.product_name.slice(0, 22)} x${i.qty}</span><span>${i.total.toLocaleString()}</span></div>`).join("")}<hr/><div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${sale.subtotal.toLocaleString()}</span></div>${sale.discount ? `<div style="display:flex;justify-content:space-between"><span>Discount</span><span>-${sale.discount.toLocaleString()}</span></div>` : ""}<div style="display:flex;justify-content:space-between;font-weight:bold;font-size:14px"><span>TOTAL ${CONFIG.currency}</span><span>${sale.total.toLocaleString()}</span></div><div style="display:flex;justify-content:space-between"><span>Paid by</span><span>${sale.method}</span></div><hr/><div style="text-align:center">Thank you for shopping with us!<br/>Prices include ${CONFIG.taxRate}% sales tax</div></div>`;
@@ -33,7 +34,7 @@ const PosPage = ({ ctx }) => {
       await sbPost("upsert_invoice", { invoice: { id, date: date.slice(0, 10), cust_id: cust || "WALKIN", cust_name: c ? c.name : "Walk-in Customer", total, status: "Paid", pay_terms: method, created_by: ctx.user.email, notes: `POS ${branches.find(b => b.id === branch)?.name || ""}`, items: items.map(i => ({ product_id: i.product_id, product_name: i.product_name, qty: i.qty, rate: i.price, total: i.total, notes: "" })) } });
       await sbPost("upsert_payment", { payment: { id: `PAY-${id}`, date: date.slice(0, 10), type: "Received", party_id: cust || "WALKIN", ref_id: id, amount: total, notes: `POS ${method}`, method } });
       if (cust) { const l = (await sbPost("list", { table: "loyalty" })).find(x => x.customer_id === cust); if (l) await sbPost("upsert", { table: "loyalty", key: "customer_id", label: "Loyalty", row: { ...l, points: l.points + Math.floor(total / 100), visits: l.visits + 1, last_visit: date.slice(0, 10) } }); }
-      setReceipt({ sale, items }); setCart([]); setDisc(0); setTendered(""); ctx.notify(`✅ Sale ${id} · ${fmt(total)}`); await ctx.loadData(true); ctx.bump();
+      setReceipt({ sale, items }); celebrate(); setCart([]); setDisc(0); setTendered(""); ctx.notify(`✅ Sale ${id} · ${fmt(total)}`); await ctx.loadData(true); ctx.bump();
     } catch (e) { ctx.notify("❌ " + e.message, "err"); } finally { setBusy(false); }
   };
   const br = branches.find(b => b.id === branch);
