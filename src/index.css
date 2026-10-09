@@ -1,0 +1,121 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #F3F8F8;
+  color: #0F2430;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CFE5E3;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2BB3A5;
+}
+
+/* Smooth transitions globally */
+button {
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+button:hover:not(:disabled) {
+  opacity: 0.88;
+}
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Mobile responsiveness ────────────────────────────────────
+   The app is built with inline styles, so we override the hard-coded
+   two/three-column dashboard & detail grids to stack on phones. The
+   attribute selectors match the inline grid-template-columns strings and
+   !important wins over inline styles. `repeat(auto-fit,…)` grids are
+   already responsive and intentionally left alone. */
+@media (max-width: 768px) {
+  /* two-column layouts → single column */
+  .crm-root [style*="grid-template-columns:1.5fr 1fr"],
+  .crm-root [style*="grid-template-columns:1.3fr 1fr"],
+  .crm-root [style*="grid-template-columns:2fr 1fr"],
+  .crm-root [style*="grid-template-columns:1fr 1.5fr"],
+  .crm-root [style*="grid-template-columns:1fr 2fr"],
+  .crm-root [style*="grid-template-columns:1fr 1fr"],
+  .crm-root [style*="grid-template-columns: 1.5fr 1fr"],
+  .crm-root [style*="grid-template-columns: 1.3fr 1fr"],
+  .crm-root [style*="grid-template-columns: 1.2fr 1fr"],
+  .crm-root [style*="grid-template-columns: 1.6fr 1fr"],
+  .crm-root [style*="grid-template-columns: 2fr 1fr"],
+  .crm-root [style*="grid-template-columns: 1fr 1.5fr"],
+  .crm-root [style*="grid-template-columns: 1fr 1.6fr"],
+  .crm-root [style*="grid-template-columns: 1fr 2fr"],
+  .crm-root [style*="grid-template-columns: 1fr 1fr;"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* dense 3/4/5-column stat rows → two columns (compact, not cramped) */
+  .crm-root [style*="grid-template-columns:repeat(3,1fr)"],
+  .crm-root [style*="grid-template-columns:repeat(4,1fr)"],
+  .crm-root [style*="grid-template-columns:repeat(5,1fr)"],
+  .crm-root [style*="grid-template-columns: repeat(3, 1fr)"],
+  .crm-root [style*="grid-template-columns: repeat(4, 1fr)"],
+  .crm-root [style*="grid-template-columns: repeat(5, 1fr)"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .crm-root [style*="grid-template-columns: 1fr 1fr 1fr"],
+  .crm-root [style*="grid-template-columns: 2fr 0.6fr 1fr 1fr auto"],
+  .crm-root [style*="grid-template-columns: 2fr 0.7fr 1fr 1fr auto"],
+  .crm-root [style*="grid-template-columns: 2fr 1fr 1fr"],
+  .crm-root [style*="grid-template-columns: 2fr 1fr 1fr 1fr"],
+  .crm-root [style*="grid-template-columns: 1fr 1.2fr 1.6fr 0.7fr 1fr 0.8fr auto"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* Modals — full width, full height on small screens */
+  .crm-root [style*="maxWidth:480"],
+  .crm-root [style*="maxWidth:720"] {
+    max-width: calc(100vw - 16px) !important;
+  }
+  .crm-root [style*="maxHeight:92vh"] {
+    max-height: 96vh !important;
+  }
+
+  /* Touch-friendly minimum tap targets for small buttons */
+  .crm-root button {
+    min-height: 34px;
+  }
+
+  /* Form rows inside modals — stack instead of side-by-side */
+  .crm-root [style*="display:flex"][style*="gap:12"] > div,
+  .crm-root [style*="display:flex"][style*="gap:10"] > div {
+    min-width: 0;
+  }
+
+  /* Prevent content from overflowing modal padding */
+  .crm-root [style*="padding:20"] {
+    padding: 14px !important;
+  }
+
+  /* KPI cards — smaller font on mobile */
+  .crm-root [style*="fontSize:20"] {
+    font-size: 17px !important;
+  }
+}
